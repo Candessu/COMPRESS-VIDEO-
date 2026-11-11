@@ -1,0 +1,1327 @@
+name: Build APK - Compress Video Pro
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Generer le projet Android
+        run: |
+          set -e
+          P=project
+          PKG=$P/app/src/main/java/mg/videocompress/pro
+          RES=$P/app/src/main/res
+          mkdir -p $PKG $RES/layout $RES/values $RES/drawable $RES/drawable-v26
+
+          cat > $P/settings.gradle <<'EOF_SETTINGS'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CompressVideoPro"
+          include ':app'
+          EOF_SETTINGS
+
+          cat > $P/build.gradle <<'EOF_ROOT'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF_ROOT
+
+          cat > $P/gradle.properties <<'EOF_PROPS'
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF_PROPS
+
+          cat > $P/app/build.gradle <<'EOF_APP'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'mg.videocompress.pro'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId "mg.videocompress.pro"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+
+              lint {
+                  abortOnError false
+                  checkReleaseBuilds false
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'com.google.android.material:material:1.12.0'
+              implementation 'androidx.media3:media3-common:1.5.1'
+              implementation 'androidx.media3:media3-effect:1.5.1'
+              implementation 'androidx.media3:media3-transformer:1.5.1'
+          }
+          EOF_APP
+
+          cat > $P/app/src/main/AndroidManifest.xml <<'EOF_MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission
+                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="28" />
+
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="Compress Vidéo Pro"
+                  android:largeHeap="true"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+                      android:exported="true"
+                      android:launchMode="singleTop">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.SEND" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:mimeType="video/*" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.SEND_MULTIPLE" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:mimeType="video/*" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF_MANIFEST
+
+          cat > $RES/values/colors.xml <<'EOF_COLORS'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="brand">#1565C0</color>
+              <color name="brand_dark">#0D47A1</color>
+              <color name="ic_bg">#1565C0</color>
+          </resources>
+          EOF_COLORS
+
+          cat > $RES/values/themes.xml <<'EOF_THEMES'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
+                  <item name="colorPrimary">@color/brand</item>
+                  <item name="android:statusBarColor">@color/brand_dark</item>
+              </style>
+
+              <style name="Section">
+                  <item name="android:layout_width">match_parent</item>
+                  <item name="android:layout_height">wrap_content</item>
+                  <item name="android:layout_marginTop">20dp</item>
+                  <item name="android:layout_marginBottom">4dp</item>
+                  <item name="android:textSize">16sp</item>
+                  <item name="android:textStyle">bold</item>
+                  <item name="android:textColor">@color/brand</item>
+              </style>
+          </resources>
+          EOF_THEMES
+
+          cat > $RES/drawable/ic_fg.xml <<'EOF_FG'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M45,38 L45,70 L72,54 Z" />
+              <path
+                  android:fillColor="#90CAF9"
+                  android:pathData="M32,36 h5 v36 h-5 Z" />
+              <path
+                  android:fillColor="#90CAF9"
+                  android:pathData="M76,36 h-5 v36 h5 Z" />
+          </vector>
+          EOF_FG
+
+          cat > $RES/drawable/ic_launcher.xml <<'EOF_ICON'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <shape android:shape="rectangle">
+                      <solid android:color="@color/ic_bg" />
+                      <corners android:radius="24dp" />
+                  </shape>
+              </item>
+              <item android:drawable="@drawable/ic_fg" />
+          </layer-list>
+          EOF_ICON
+
+          cat > $RES/drawable-v26/ic_launcher.xml <<'EOF_ICON26'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_bg" />
+              <foreground android:drawable="@drawable/ic_fg" />
+          </adaptive-icon>
+          EOF_ICON26
+
+          cat > $RES/layout/activity_main.xml <<'EOF_LAYOUT'
+          <?xml version="1.0" encoding="utf-8"?>
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:fillViewport="true"
+              android:fitsSystemWindows="true">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:padding="18dp">
+
+                  <TextView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="Compress Vidéo Pro"
+                      android:textColor="@color/brand"
+                      android:textSize="26sp"
+                      android:textStyle="bold" />
+
+                  <TextView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="12dp"
+                      android:text="Réduire le poids des vidéos sans perte visible de qualité"
+                      android:textSize="14sp" />
+
+                  <Button
+                      android:id="@+id/btnPick"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="Choisir des vidéos" />
+
+                  <TextView
+                      android:id="@+id/tvQueue"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="8dp"
+                      android:text="Aucune vidéo sélectionnée."
+                      android:textSize="14sp" />
+
+                  <TextView
+                      style="@style/Section"
+                      android:text="Codec" />
+
+                  <RadioGroup
+                      android:id="@+id/rgCodec"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content">
+
+                      <RadioButton
+                          android:id="@+id/rbH265"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:checked="true"
+                          android:text="H.265 / HEVC (recommandé)" />
+
+                      <RadioButton
+                          android:id="@+id/rbAv1"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="AV1 (encore plus léger)" />
+
+                      <RadioButton
+                          android:id="@+id/rbH264"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="H.264 (compatible avec tous les appareils)" />
+                  </RadioGroup>
+
+                  <TextView
+                      style="@style/Section"
+                      android:text="Qualité" />
+
+                  <RadioGroup
+                      android:id="@+id/rgQuality"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content">
+
+                      <RadioButton
+                          android:id="@+id/rbHigh"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="Qualité maximale (aucune perte visible)" />
+
+                      <RadioButton
+                          android:id="@+id/rbBalanced"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:checked="true"
+                          android:text="Équilibré (recommandé)" />
+
+                      <RadioButton
+                          android:id="@+id/rbSmall"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="Taille minimale" />
+                  </RadioGroup>
+
+                  <TextView
+                      style="@style/Section"
+                      android:text="Résolution" />
+
+                  <RadioGroup
+                      android:id="@+id/rgRes"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content">
+
+                      <RadioButton
+                          android:id="@+id/rbOrig"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:checked="true"
+                          android:text="Résolution d'origine" />
+
+                      <RadioButton
+                          android:id="@+id/rb1080"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="1080p (Full HD)" />
+
+                      <RadioButton
+                          android:id="@+id/rb720"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="720p (HD)" />
+
+                      <RadioButton
+                          android:id="@+id/rb480"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="480p (partage rapide)" />
+                  </RadioGroup>
+
+                  <CheckBox
+                      android:id="@+id/cbMute"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="12dp"
+                      android:text="Supprimer le son" />
+
+                  <Button
+                      android:id="@+id/btnStart"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="14dp"
+                      android:text="Compresser" />
+
+                  <ProgressBar
+                      android:id="@+id/bar"
+                      style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="12dp"
+                      android:max="100"
+                      android:visibility="gone" />
+
+                  <TextView
+                      android:id="@+id/tvStatus"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="6dp"
+                      android:textSize="14sp"
+                      android:textStyle="bold" />
+
+                  <Button
+                      android:id="@+id/btnCancel"
+                      style="@style/Widget.Material3.Button.OutlinedButton"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="6dp"
+                      android:text="Annuler"
+                      android:visibility="gone" />
+
+                  <TextView
+                      android:id="@+id/tvLog"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="14dp"
+                      android:lineSpacingExtra="3dp"
+                      android:textIsSelectable="true"
+                      android:textSize="14sp" />
+              </LinearLayout>
+          </ScrollView>
+          EOF_LAYOUT
+
+          cat > $PKG/MainActivity.java <<'EOF_JAVA'
+          package mg.videocompress.pro;
+
+          import android.Manifest;
+          import android.content.ContentValues;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.database.Cursor;
+          import android.media.MediaCodecInfo;
+          import android.media.MediaCodecList;
+          import android.media.MediaExtractor;
+          import android.media.MediaFormat;
+          import android.media.MediaMetadataRetriever;
+          import android.media.MediaScannerConnection;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.MediaStore;
+          import android.provider.OpenableColumns;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.CheckBox;
+          import android.widget.ProgressBar;
+          import android.widget.RadioButton;
+          import android.widget.RadioGroup;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.activity.result.ActivityResultLauncher;
+          import androidx.activity.result.contract.ActivityResultContracts;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import androidx.media3.common.Effect;
+          import androidx.media3.common.MediaItem;
+          import androidx.media3.common.audio.AudioProcessor;
+          import androidx.media3.effect.Presentation;
+          import androidx.media3.transformer.Composition;
+          import androidx.media3.transformer.DefaultEncoderFactory;
+          import androidx.media3.transformer.EditedMediaItem;
+          import androidx.media3.transformer.Effects;
+          import androidx.media3.transformer.ExportException;
+          import androidx.media3.transformer.ExportResult;
+          import androidx.media3.transformer.ProgressHolder;
+          import androidx.media3.transformer.TransformationRequest;
+          import androidx.media3.transformer.Transformer;
+          import androidx.media3.transformer.VideoEncoderSettings;
+
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          public class MainActivity extends AppCompatActivity {
+
+              private static final String DIR_NAME = "CompressVideoPro";
+              private static final String MIME_HEVC = "video/hevc";
+              private static final String MIME_AV1 = "video/av01";
+              private static final String MIME_AVC = "video/avc";
+
+              private static class Info {
+                  Uri uri;
+                  String name = "video";
+                  long size;
+                  int w;
+                  int h;
+                  int rot;
+                  long durMs;
+                  long bitrate;
+                  float fps = 30f;
+              }
+
+              private final List<Info> items = new ArrayList<>();
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private final ExecutorService io = Executors.newSingleThreadExecutor();
+              private final ProgressHolder holder = new ProgressHolder();
+              private final StringBuilder log = new StringBuilder();
+
+              private Transformer transformer;
+              private File tempOut;
+              private int index;
+              private boolean busy;
+              private long totalIn;
+              private long totalOut;
+              private int doneCount;
+              private String runMime = MIME_HEVC;
+              private int runQuality = 1;
+              private int runRes = 0;
+              private boolean runMute;
+              private String fallbackNote;
+
+              private Button btnPick;
+              private Button btnStart;
+              private Button btnCancel;
+              private TextView tvQueue;
+              private TextView tvStatus;
+              private TextView tvLog;
+              private ProgressBar bar;
+              private RadioGroup rgCodec;
+              private RadioGroup rgQuality;
+              private RadioGroup rgRes;
+              private CheckBox cbMute;
+
+              private final ActivityResultLauncher<String> picker =
+                      registerForActivityResult(new ActivityResultContracts.GetMultipleContents(), uris -> {
+                          if (uris != null && !uris.isEmpty()) {
+                              setQueue(uris);
+                          }
+                      });
+
+              private final Runnable tick = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (transformer == null || !busy) {
+                          return;
+                      }
+                      try {
+                          int st = transformer.getProgress(holder);
+                          if (st == Transformer.PROGRESS_STATE_AVAILABLE) {
+                              bar.setIndeterminate(false);
+                              bar.setProgress(holder.progress);
+                              tvStatus.setText(statusPrefix() + " — " + holder.progress + " %");
+                          }
+                      } catch (Exception ignored) {
+                      }
+                      handler.postDelayed(this, 500);
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  btnPick = findViewById(R.id.btnPick);
+                  btnStart = findViewById(R.id.btnStart);
+                  btnCancel = findViewById(R.id.btnCancel);
+                  tvQueue = findViewById(R.id.tvQueue);
+                  tvStatus = findViewById(R.id.tvStatus);
+                  tvLog = findViewById(R.id.tvLog);
+                  bar = findViewById(R.id.bar);
+                  rgCodec = findViewById(R.id.rgCodec);
+                  rgQuality = findViewById(R.id.rgQuality);
+                  rgRes = findViewById(R.id.rgRes);
+                  cbMute = findViewById(R.id.cbMute);
+                  RadioButton rbH265 = findViewById(R.id.rbH265);
+                  RadioButton rbAv1 = findViewById(R.id.rbAv1);
+
+                  boolean hevc = hasEncoder(MIME_HEVC);
+                  boolean av1 = Build.VERSION.SDK_INT >= 34 && hasEncoder(MIME_AV1);
+                  if (!av1) {
+                      rbAv1.setEnabled(false);
+                      rbAv1.setText("AV1 (non disponible sur ce téléphone)");
+                  }
+                  if (!hevc) {
+                      rbH265.setEnabled(false);
+                      rbH265.setText("H.265 / HEVC (non disponible sur ce téléphone)");
+                      rgCodec.check(R.id.rbH264);
+                  }
+
+                  RadioGroup.OnCheckedChangeListener refresh = (group, id) -> refreshQueue();
+                  rgCodec.setOnCheckedChangeListener(refresh);
+                  rgQuality.setOnCheckedChangeListener(refresh);
+                  rgRes.setOnCheckedChangeListener(refresh);
+                  cbMute.setOnCheckedChangeListener((button, checked) -> refreshQueue());
+
+                  btnPick.setOnClickListener(v -> picker.launch("video/*"));
+                  btnStart.setOnClickListener(v -> startAll());
+                  btnCancel.setOnClickListener(v -> cancelAll());
+
+                  if (Build.VERSION.SDK_INT < 29
+                          && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                          != PackageManager.PERMISSION_GRANTED) {
+                      ActivityCompat.requestPermissions(this,
+                              new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+                  }
+
+                  setBusy(false);
+                  handleIntent(getIntent());
+              }
+
+              @Override
+              protected void onNewIntent(Intent intent) {
+                  super.onNewIntent(intent);
+                  handleIntent(intent);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  handler.removeCallbacksAndMessages(null);
+                  busy = false;
+                  if (transformer != null) {
+                      try {
+                          transformer.cancel();
+                      } catch (Exception ignored) {
+                      }
+                      transformer = null;
+                  }
+                  deleteTemp();
+                  io.shutdown();
+                  super.onDestroy();
+              }
+
+              private void handleIntent(Intent intent) {
+                  if (intent == null || intent.getAction() == null) {
+                      return;
+                  }
+                  List<Uri> uris = new ArrayList<>();
+                  String action = intent.getAction();
+                  try {
+                      if (Intent.ACTION_SEND.equals(action)) {
+                          Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                          if (u != null) {
+                              uris.add(u);
+                          }
+                      } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+                          ArrayList<Uri> l = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+                          if (l != null) {
+                              uris.addAll(l);
+                          }
+                      }
+                  } catch (Exception ignored) {
+                  }
+                  if (uris.isEmpty()) {
+                      return;
+                  }
+                  if (busy) {
+                      Toast.makeText(this, "Une compression est déjà en cours.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  setQueue(uris);
+              }
+
+              private void setQueue(List<Uri> uris) {
+                  if (busy) {
+                      return;
+                  }
+                  items.clear();
+                  for (Uri u : uris) {
+                      if (u != null) {
+                          items.add(readInfo(u));
+                      }
+                  }
+                  log.setLength(0);
+                  tvLog.setText("");
+                  tvStatus.setText("");
+                  refreshQueue();
+              }
+
+              private Info readInfo(Uri uri) {
+                  Info i = new Info();
+                  i.uri = uri;
+
+                  try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                      if (c != null && c.moveToFirst()) {
+                          int n = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                          int s = c.getColumnIndex(OpenableColumns.SIZE);
+                          if (n >= 0 && c.getString(n) != null) {
+                              i.name = c.getString(n);
+                          }
+                          if (s >= 0 && !c.isNull(s)) {
+                              i.size = c.getLong(s);
+                          }
+                      }
+                  } catch (Exception ignored) {
+                  }
+
+                  MediaMetadataRetriever r = new MediaMetadataRetriever();
+                  try {
+                      r.setDataSource(this, uri);
+                      i.w = toInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                      i.h = toInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                      i.rot = toInt(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                      i.durMs = toLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+                      i.bitrate = toLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+                  } catch (Exception ignored) {
+                  } finally {
+                      try {
+                          r.release();
+                      } catch (Exception ignored) {
+                      }
+                  }
+
+                  MediaExtractor ex = new MediaExtractor();
+                  try {
+                      ex.setDataSource(this, uri, null);
+                      for (int t = 0; t < ex.getTrackCount(); t++) {
+                          MediaFormat f = ex.getTrackFormat(t);
+                          String mime = f.getString(MediaFormat.KEY_MIME);
+                          if (mime != null && mime.startsWith("video/")) {
+                              if (f.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                                  try {
+                                      i.fps = f.getInteger(MediaFormat.KEY_FRAME_RATE);
+                                  } catch (Exception e1) {
+                                      try {
+                                          i.fps = f.getFloat(MediaFormat.KEY_FRAME_RATE);
+                                      } catch (Exception ignored) {
+                                      }
+                                  }
+                              }
+                              break;
+                          }
+                      }
+                  } catch (Exception ignored) {
+                  } finally {
+                      try {
+                          ex.release();
+                      } catch (Exception ignored) {
+                      }
+                  }
+
+                  if (i.bitrate <= 0 && i.size > 0 && i.durMs > 0) {
+                      i.bitrate = i.size * 8000L / i.durMs;
+                  }
+                  return i;
+              }
+
+              private static int toInt(String s) {
+                  try {
+                      return s == null ? 0 : Integer.parseInt(s.trim());
+                  } catch (Exception e) {
+                      return 0;
+                  }
+              }
+
+              private static long toLong(String s) {
+                  try {
+                      return s == null ? 0L : Long.parseLong(s.trim());
+                  } catch (Exception e) {
+                      return 0L;
+                  }
+              }
+
+              private boolean hasEncoder(String mime) {
+                  try {
+                      MediaCodecList list = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+                      for (MediaCodecInfo ci : list.getCodecInfos()) {
+                          if (!ci.isEncoder()) {
+                              continue;
+                          }
+                          for (String t : ci.getSupportedTypes()) {
+                              if (t.equalsIgnoreCase(mime)) {
+                                  return true;
+                              }
+                          }
+                      }
+                  } catch (Exception ignored) {
+                  }
+                  return false;
+              }
+
+              private String codecMime() {
+                  int id = rgCodec.getCheckedRadioButtonId();
+                  if (id == R.id.rbAv1) {
+                      return MIME_AV1;
+                  }
+                  if (id == R.id.rbH264) {
+                      return MIME_AVC;
+                  }
+                  return MIME_HEVC;
+              }
+
+              private int quality() {
+                  int id = rgQuality.getCheckedRadioButtonId();
+                  if (id == R.id.rbHigh) {
+                      return 0;
+                  }
+                  if (id == R.id.rbSmall) {
+                      return 2;
+                  }
+                  return 1;
+              }
+
+              private int resShort() {
+                  int id = rgRes.getCheckedRadioButtonId();
+                  if (id == R.id.rb1080) {
+                      return 1080;
+                  }
+                  if (id == R.id.rb720) {
+                      return 720;
+                  }
+                  if (id == R.id.rb480) {
+                      return 480;
+                  }
+                  return 0;
+              }
+
+              private static String codecLabel(String mime) {
+                  if (MIME_AV1.equals(mime)) {
+                      return "AV1";
+                  }
+                  if (MIME_AVC.equals(mime)) {
+                      return "H.264";
+                  }
+                  if (MIME_HEVC.equals(mime)) {
+                      return "H.265";
+                  }
+                  return mime == null ? "?" : mime;
+              }
+
+              private static int even(double v) {
+                  int r = (int) Math.round(v);
+                  return Math.max(2, r - (r % 2));
+              }
+
+              /** Dimensions affichées de sortie : {largeur, hauteur, 1 si redimensionné}. */
+              private int[] computeOut(Info in, int resShort) {
+                  int w = in.w > 0 ? in.w : 1280;
+                  int h = in.h > 0 ? in.h : 720;
+                  if (in.rot == 90 || in.rot == 270) {
+                      int t = w;
+                      w = h;
+                      h = t;
+                  }
+                  int scaled = 0;
+                  int s = Math.min(w, h);
+                  if (resShort > 0 && s > resShort) {
+                      double k = resShort / (double) s;
+                      w = even(w * k);
+                      h = even(h * k);
+                      scaled = 1;
+                  }
+                  return new int[]{w, h, scaled};
+              }
+
+              /**
+               * Débit cible "qualité constante" : calculé selon le nombre de pixels,
+               * la fluidité et l'efficacité du codec, puis plafonné par le débit d'origine.
+               */
+              private long computeBitrate(Info in, int outW, int outH, String mime, int q) {
+                  double bpp = q == 0 ? 0.080 : (q == 1 ? 0.052 : 0.033);
+                  double cf = MIME_AVC.equals(mime) ? 1.5 : (MIME_AV1.equals(mime) ? 0.85 : 1.0);
+                  double fps = in.fps <= 1f ? 30.0 : Math.min(in.fps, 120f);
+                  double effFps = fps <= 30.0 ? fps : 30.0 + (fps - 30.0) * 0.5;
+                  if (effFps < 24.0) {
+                      effFps = 24.0;
+                  }
+                  long target = (long) (outW * (double) outH * effFps * bpp * cf);
+                  if (in.bitrate > 0) {
+                      double pixRatio = 1.0;
+                      if (in.w > 0 && in.h > 0) {
+                          pixRatio = (outW * (double) outH) / (in.w * (double) in.h);
+                          if (pixRatio > 1.0) {
+                              pixRatio = 1.0;
+                          }
+                      }
+                      double capFactor = q == 0 ? 0.85 : (q == 1 ? 0.70 : 0.55);
+                      double cap = capFactor * in.bitrate * Math.pow(pixRatio, 0.75);
+                      if (target > cap) {
+                          target = (long) cap;
+                      }
+                  }
+                  if (target < 300000L) {
+                      target = 300000L;
+                  }
+                  if (target > 100000000L) {
+                      target = 100000000L;
+                  }
+                  return target;
+              }
+
+              private static String fmt(long b) {
+                  if (b >= 1073741824L) {
+                      return String.format(Locale.FRANCE, "%.2f Go", b / 1073741824.0);
+                  }
+                  if (b >= 1048576L) {
+                      return String.format(Locale.FRANCE, "%.1f Mo", b / 1048576.0);
+                  }
+                  return String.format(Locale.FRANCE, "%d Ko", Math.max(1L, b / 1024L));
+              }
+
+              private static String fmtDur(long ms) {
+                  long s = ms / 1000L;
+                  return String.format(Locale.FRANCE, "%d:%02d", s / 60L, s % 60L);
+              }
+
+              private void refreshQueue() {
+                  if (items.isEmpty()) {
+                      tvQueue.setText("Aucune vidéo sélectionnée.");
+                      return;
+                  }
+                  String mime = codecMime();
+                  int q = quality();
+                  int res = resShort();
+                  boolean mute = cbMute.isChecked();
+                  StringBuilder sb = new StringBuilder();
+                  long sumIn = 0;
+                  long sumEst = 0;
+                  for (Info in : items) {
+                      int[] src = computeOut(in, 0);
+                      int[] o = computeOut(in, res);
+                      long br = computeBitrate(in, o[0], o[1], mime, q);
+                      long est = in.durMs > 0 ? (br + (mute ? 0L : 128000L)) * in.durMs / 8000L : 0L;
+                      if (in.size > 0 && est > in.size) {
+                          est = in.size;
+                      }
+                      sumIn += in.size;
+                      sumEst += est;
+                      sb.append("• ").append(in.name).append("\n    ");
+                      sb.append(src[0]).append("×").append(src[1]);
+                      if (in.durMs > 0) {
+                          sb.append(" · ").append(fmtDur(in.durMs));
+                      }
+                      if (in.size > 0) {
+                          sb.append(" · ").append(fmt(in.size));
+                      }
+                      if (est > 0) {
+                          sb.append("  →  ≈ ").append(fmt(est));
+                      }
+                      sb.append("\n");
+                  }
+                  if (sumIn > 0 && sumEst > 0) {
+                      long pct = Math.round(100.0 * (sumIn - sumEst) / sumIn);
+                      sb.append("\nTotal : ").append(fmt(sumIn)).append("  →  ≈ ").append(fmt(sumEst))
+                              .append("  (gain estimé ").append(pct).append(" %)");
+                  }
+                  tvQueue.setText(sb.toString());
+              }
+
+              private void setBusy(boolean b) {
+                  busy = b;
+                  btnPick.setEnabled(!b);
+                  btnStart.setEnabled(!b);
+                  btnCancel.setVisibility(b ? View.VISIBLE : View.GONE);
+                  bar.setVisibility(b ? View.VISIBLE : View.GONE);
+                  if (b) {
+                      getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  } else {
+                      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  }
+              }
+
+              private void appendLog(String line) {
+                  if (log.length() > 0) {
+                      log.append("\n");
+                  }
+                  log.append(line);
+                  tvLog.setText(log.toString());
+              }
+
+              private String statusPrefix() {
+                  return "Compression " + (index + 1) + "/" + items.size();
+              }
+
+              private void deleteTemp() {
+                  try {
+                      if (tempOut != null && tempOut.exists()) {
+                          tempOut.delete();
+                      }
+                  } catch (Exception ignored) {
+                  }
+              }
+
+              private void startAll() {
+                  if (busy) {
+                      return;
+                  }
+                  if (items.isEmpty()) {
+                      Toast.makeText(this, "Choisissez d'abord une ou plusieurs vidéos.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  runMime = codecMime();
+                  runQuality = quality();
+                  runRes = resShort();
+                  runMute = cbMute.isChecked();
+                  index = 0;
+                  totalIn = 0;
+                  totalOut = 0;
+                  doneCount = 0;
+                  log.setLength(0);
+                  tvLog.setText("");
+                  setBusy(true);
+                  processNext();
+              }
+
+              private void cancelAll() {
+                  if (!busy) {
+                      return;
+                  }
+                  handler.removeCallbacks(tick);
+                  if (transformer != null) {
+                      try {
+                          transformer.cancel();
+                      } catch (Exception ignored) {
+                      }
+                      transformer = null;
+                  }
+                  deleteTemp();
+                  appendLog("■ Compression annulée.");
+                  finishAll();
+              }
+
+              private void finishAll() {
+                  handler.removeCallbacks(tick);
+                  setBusy(false);
+                  bar.setProgress(0);
+                  if (doneCount > 0 && totalIn > 0) {
+                      long pct = Math.round(100.0 * (totalIn - totalOut) / totalIn);
+                      tvStatus.setText("Terminé : " + fmt(totalIn) + " → " + fmt(totalOut)
+                              + "  (−" + pct + " %)");
+                  } else {
+                      tvStatus.setText("Terminé.");
+                  }
+              }
+
+              private void processNext() {
+                  if (isFinishing() || isDestroyed() || !busy) {
+                      return;
+                  }
+                  if (index >= items.size()) {
+                      finishAll();
+                      return;
+                  }
+                  final Info in = items.get(index);
+                  final int[] o = computeOut(in, runRes);
+                  final long br = computeBitrate(in, o[0], o[1], runMime, runQuality);
+                  fallbackNote = null;
+
+                  File dir = getExternalCacheDir();
+                  if (dir == null) {
+                      dir = getCacheDir();
+                  }
+                  tempOut = new File(dir, "cvp_tmp_" + System.currentTimeMillis() + ".mp4");
+
+                  bar.setIndeterminate(true);
+                  tvStatus.setText(statusPrefix() + " — préparation…");
+
+                  try {
+                      VideoEncoderSettings ves = new VideoEncoderSettings.Builder()
+                              .setBitrate((int) br)
+                              .build();
+                      DefaultEncoderFactory encoderFactory = new DefaultEncoderFactory.Builder(getApplicationContext())
+                              .setRequestedVideoEncoderSettings(ves)
+                              .setEnableFallback(true)
+                              .build();
+
+                      Transformer.Listener listener = new Transformer.Listener() {
+                          @Override
+                          public void onCompleted(Composition composition, ExportResult exportResult) {
+                              onItemDone(in);
+                          }
+
+                          @Override
+                          public void onError(Composition composition, ExportResult exportResult,
+                                              ExportException exportException) {
+                              onItemError(in, exportException);
+                          }
+
+                          @Override
+                          public void onFallbackApplied(Composition composition,
+                                                        TransformationRequest originalTransformationRequest,
+                                                        TransformationRequest fallbackTransformationRequest) {
+                              String m = fallbackTransformationRequest.videoMimeType;
+                              if (m != null && !m.equals(runMime)) {
+                                  fallbackNote = "codec remplacé par " + codecLabel(m);
+                              }
+                          }
+                      };
+
+                      transformer = new Transformer.Builder(getApplicationContext())
+                              .setVideoMimeType(runMime)
+                              .setEncoderFactory(encoderFactory)
+                              .addListener(listener)
+                              .build();
+
+                      EditedMediaItem.Builder b = new EditedMediaItem.Builder(MediaItem.fromUri(in.uri));
+                      if (runMute) {
+                          b.setRemoveAudio(true);
+                      }
+                      if (o[2] == 1) {
+                          List<AudioProcessor> audio = new ArrayList<>();
+                          List<Effect> video = new ArrayList<>();
+                          video.add(Presentation.createForHeight(o[1]));
+                          b.setEffects(new Effects(audio, video));
+                      }
+
+                      transformer.start(b.build(), tempOut.getAbsolutePath());
+                      handler.removeCallbacks(tick);
+                      handler.postDelayed(tick, 500);
+                  } catch (Exception e) {
+                      transformer = null;
+                      deleteTemp();
+                      appendLog("✖ " + in.name + " : " + e.getMessage());
+                      index++;
+                      handler.post(this::processNext);
+                  }
+              }
+
+              private void onItemError(Info in, ExportException e) {
+                  handler.removeCallbacks(tick);
+                  transformer = null;
+                  deleteTemp();
+                  if (!busy) {
+                      return;
+                  }
+                  String code = "erreur";
+                  try {
+                      code = e.getErrorCodeName();
+                  } catch (Exception ignored) {
+                  }
+                  appendLog("✖ " + in.name + " : échec (" + code + ")");
+                  index++;
+                  processNext();
+              }
+
+              private void onItemDone(final Info in) {
+                  handler.removeCallbacks(tick);
+                  transformer = null;
+                  if (!busy) {
+                      deleteTemp();
+                      return;
+                  }
+                  final File tmp = tempOut;
+                  final long outSize = tmp == null ? 0L : tmp.length();
+
+                  if (outSize <= 0) {
+                      deleteTemp();
+                      appendLog("✖ " + in.name + " : fichier de sortie vide");
+                      index++;
+                      processNext();
+                      return;
+                  }
+
+                  if (in.size > 0 && outSize >= (long) (in.size * 0.97)) {
+                      deleteTemp();
+                      appendLog("● " + in.name + " : déjà bien optimisée, original conservé ("
+                              + fmt(in.size) + ")");
+                      index++;
+                      processNext();
+                      return;
+                  }
+
+                  bar.setIndeterminate(true);
+                  tvStatus.setText(statusPrefix() + " — enregistrement dans la galerie…");
+                  final String outName = outName(in.name);
+                  final String note = fallbackNote;
+
+                  io.execute(() -> {
+                      String where;
+                      boolean ok = true;
+                      try {
+                          where = saveToGallery(tmp, outName);
+                      } catch (Exception e1) {
+                          try {
+                              where = saveToAppFolder(tmp, outName);
+                          } catch (Exception e2) {
+                              ok = false;
+                              where = String.valueOf(e2.getMessage());
+                          }
+                      }
+                      try {
+                          tmp.delete();
+                      } catch (Exception ignored) {
+                      }
+                      final boolean fOk = ok;
+                      final String fWhere = where;
+                      handler.post(() -> {
+                          if (isFinishing() || isDestroyed()) {
+                              return;
+                          }
+                          if (fOk) {
+                              StringBuilder sb = new StringBuilder();
+                              sb.append("✔ ").append(in.name).append("\n    ");
+                              if (in.size > 0) {
+                                  long pct = Math.round(100.0 * (in.size - outSize) / in.size);
+                                  sb.append(fmt(in.size)).append(" → ").append(fmt(outSize))
+                                          .append("  (−").append(pct).append(" %)");
+                                  totalIn += in.size;
+                                  totalOut += outSize;
+                              } else {
+                                  sb.append(fmt(outSize));
+                              }
+                              sb.append(" · ").append(codecLabel(runMime));
+                              if (note != null) {
+                                  sb.append(" · ").append(note);
+                              }
+                              sb.append("\n    Enregistré : ").append(fWhere);
+                              appendLog(sb.toString());
+                              doneCount++;
+                          } else {
+                              appendLog("✖ " + in.name + " : enregistrement impossible (" + fWhere + ")");
+                          }
+                          if (!busy) {
+                              return;
+                          }
+                          index++;
+                          processNext();
+                      });
+                  });
+              }
+
+              private static String outName(String name) {
+                  String base = name == null ? "video" : name;
+                  int dot = base.lastIndexOf('.');
+                  if (dot > 0) {
+                      base = base.substring(0, dot);
+                  }
+                  base = base.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+                  if (base.isEmpty()) {
+                      base = "video";
+                  }
+                  return base + "_compress.mp4";
+              }
+
+              private static void copy(InputStream in, OutputStream out) throws IOException {
+                  byte[] buf = new byte[1 << 16];
+                  int n;
+                  while ((n = in.read(buf)) > 0) {
+                      out.write(buf, 0, n);
+                  }
+                  out.flush();
+              }
+
+              private String saveToGallery(File src, String displayName) throws IOException {
+                  if (Build.VERSION.SDK_INT >= 29) {
+                      ContentValues cv = new ContentValues();
+                      cv.put(MediaStore.Video.Media.DISPLAY_NAME, displayName);
+                      cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                      cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/" + DIR_NAME);
+                      cv.put(MediaStore.Video.Media.IS_PENDING, 1);
+                      Uri col = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                      Uri item = getContentResolver().insert(col, cv);
+                      if (item == null) {
+                          throw new IOException("MediaStore indisponible");
+                      }
+                      try (InputStream in = new FileInputStream(src);
+                           OutputStream out = getContentResolver().openOutputStream(item)) {
+                          if (out == null) {
+                              throw new IOException("Écriture impossible");
+                          }
+                          copy(in, out);
+                      } catch (IOException e) {
+                          try {
+                              getContentResolver().delete(item, null, null);
+                          } catch (Exception ignored) {
+                          }
+                          throw e;
+                      }
+                      ContentValues done = new ContentValues();
+                      done.put(MediaStore.Video.Media.IS_PENDING, 0);
+                      getContentResolver().update(item, done, null, null);
+                      return "Galerie › Movies/" + DIR_NAME;
+                  } else {
+                      File dir = new File(
+                              Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), DIR_NAME);
+                      if (!dir.exists() && !dir.mkdirs()) {
+                          throw new IOException("Dossier inaccessible");
+                      }
+                      File dst = uniqueFile(dir, displayName);
+                      try (InputStream in = new FileInputStream(src);
+                           OutputStream out = new FileOutputStream(dst)) {
+                          copy(in, out);
+                      }
+                      MediaScannerConnection.scanFile(this, new String[]{dst.getAbsolutePath()}, null, null);
+                      return "Movies/" + DIR_NAME;
+                  }
+              }
+
+              private String saveToAppFolder(File src, String displayName) throws IOException {
+                  File dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES);
+                  if (dir == null) {
+                      dir = getFilesDir();
+                  }
+                  if (!dir.exists() && !dir.mkdirs()) {
+                      throw new IOException("Dossier inaccessible");
+                  }
+                  File dst = uniqueFile(dir, displayName);
+                  try (InputStream in = new FileInputStream(src);
+                       OutputStream out = new FileOutputStream(dst)) {
+                      copy(in, out);
+                  }
+                  return dst.getAbsolutePath();
+              }
+
+              private static File uniqueFile(File dir, String name) {
+                  File f = new File(dir, name);
+                  if (!f.exists()) {
+                      return f;
+                  }
+                  String base = name;
+                  String ext = "";
+                  int dot = name.lastIndexOf('.');
+                  if (dot > 0) {
+                      base = name.substring(0, dot);
+                      ext = name.substring(dot);
+                  }
+                  return new File(dir, base + "_" + System.currentTimeMillis() + ext);
+              }
+          }
+          EOF_JAVA
+
+      - name: Compiler l'APK
+        run: |
+          cd project
+          gradle --no-daemon --stacktrace assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../CompressVideoPro.apk
+
+      - name: Publier l'APK (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CompressVideoPro-apk
+          path: CompressVideoPro.apk
+
+      - name: Publier l'APK (Release, telechargement direct)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Compress Video Pro v1.0.${{ github.run_number }}
+          files: CompressVideoPro.apk
